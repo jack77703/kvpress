@@ -29,7 +29,7 @@ singularity exec --nv \
   --overlay /scratch/cc9171/my_env/my_overlay.ext3:ro \
   /share/apps/images/cuda11.8.86-cudnn8.7-devel-ubuntu22.04.2.sif \
   bash << INNER
-set -euo pipefail
+set -eo pipefail
 
 source /ext3/miniconda3/bin/activate
 conda activate kvpress
