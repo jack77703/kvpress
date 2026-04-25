@@ -20,6 +20,12 @@ def parse_csv_floats(values: str | tuple | list) -> list[float]:
     return [float(value.strip()) for value in values.split(",") if value.strip()]
 
 
+def parse_csv_strings(values: str | tuple | list) -> list[str]:
+    if isinstance(values, (tuple, list)):
+        return [str(value).strip() for value in values if str(value).strip()]
+    return [value.strip() for value in values.split(",") if value.strip()]
+
+
 def build_context(tokenizer, target_tokens: int) -> str:
     paragraph = (
         "This is a synthetic long-context benchmark passage about GPU memory, key value caches, "
@@ -143,10 +149,7 @@ def main(
     rows = []
     ratios = parse_csv_floats(compression_ratios)
 
-    for method in methods.split(","):
-        method = method.strip()
-        if not method:
-            continue
+    for method in parse_csv_strings(methods):
         method_ratios = [0.0] if method == "no_press" else ratios
         for ratio in method_ratios:
             print(f"Running {method} with compression_ratio={ratio}", flush=True)
