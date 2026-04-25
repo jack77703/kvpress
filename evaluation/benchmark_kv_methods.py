@@ -6,7 +6,6 @@ import gc
 import time
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Optional
 
 import torch
 from fire import Fire
@@ -15,7 +14,9 @@ from transformers import DynamicCache, pipeline
 from kvpress import KVzapPrunePress, KVzipPress
 
 
-def parse_csv_floats(values: str) -> list[float]:
+def parse_csv_floats(values: str | tuple | list) -> list[float]:
+    if isinstance(values, (tuple, list)):
+        return [float(value) for value in values]
     return [float(value.strip()) for value in values.split(",") if value.strip()]
 
 
@@ -63,35 +64,38 @@ def benchmark_method(
         max_context_length=max_context_length,
         enable_thinking=False,
     )
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        model_allocated_gb = memory_gb(torch.cuda.memory_allocated())
+    else:
+        model_allocated_gb = 0.0
+
     context_ids = input_tensors["context_ids"].to(pipe.model.device)
     question_ids = input_tensors["questions_ids"][0].to(pipe.model.device)
     original_context_tokens = context_ids.shape[1]
 
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
-        model_allocated_gb = memory_gb(torch.cuda.memory_allocated())
-    else:
-        model_allocated_gb = 0.0
 
     synchronize()
     total_start = time.perf_counter()
     prefill_start = time.perf_counter()
 
-    prefill_context = press(pipe.model) if press is not None else nullcontext()
-    with prefill_context:
-        pipe.model.model(input_ids=context_ids, past_key_values=cache)
+    with torch.inference_mode():
+        prefill_context = press(pipe.model) if press is not None else nullcontext()
+        with prefill_context:
+            pipe.model.model(input_ids=context_ids, past_key_values=cache)
 
-    synchronize()
-    prefill_seconds = time.perf_counter() - prefill_start
-    compressed_cache_tokens = cache.get_seq_length()
+        synchronize()
+        prefill_seconds = time.perf_counter() - prefill_start
+        compressed_cache_tokens = cache.get_seq_length()
 
-    answer = pipe.generate_answer(
-        question_ids=question_ids,
-        cache=cache,
-        context_length=original_context_tokens,
-        max_new_tokens=max_new_tokens,
-    )
+        answer = pipe.generate_answer(
+            question_ids=question_ids,
+            cache=cache,
+            context_length=original_context_tokens,
+            max_new_tokens=max_new_tokens,
+        )
 
     synchronize()
     total_seconds = time.perf_counter() - total_start
