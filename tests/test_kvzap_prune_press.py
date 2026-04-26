@@ -34,8 +34,8 @@ def test_kvzap_prune_press_physically_prunes_cache_by_ratio():
     scores = torch.tensor(
         [
             [
-                [0.0, 10.0, 2.0, 7.0, 4.0, 9.0, 6.0, 1.0],
-                [0.0, 8.0, 3.0, 5.0, 4.0, 7.0, 6.0, 1.0],
+                [0.0, 10.0, 100.0, 9.0, 8.0, 7.0, 6.0, 1.0],
+                [0.0, 10.0, -100.0, 9.0, 8.0, 7.0, 6.0, 1.0],
             ]
         ]
     )
@@ -47,7 +47,7 @@ def test_kvzap_prune_press_physically_prunes_cache_by_ratio():
 
     compressed_keys, compressed_values = press.compress(module, hidden_states, keys, values, None, {})
 
-    expected_indices = torch.tensor([0, 1, 5, 7])
+    expected_indices = torch.tensor([0, 1, 2, 7])
     assert compressed_keys.shape == (1, 2, 4, 3)
     assert compressed_values.shape == (1, 2, 4, 3)
     assert torch.equal(compressed_keys, keys[:, :, expected_indices])

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
-from typing import Literal
 
 import torch
 from torch import nn
@@ -15,19 +14,17 @@ class KVzapPrunePress(KVzapPress):
     """
     Ratio-controlled real pruning with KVzap scores.
 
-    KVzap's default DMS usage masks low-scoring head/token pairs. This press averages
-    KVzap scores across KV heads to choose one shared token set, then physically shrinks
+    KVzap's default DMS usage masks low-scoring head/token pairs. This press takes
+    the maximum KVzap score across KV heads to choose one shared token set, then physically shrinks
     the dense KV cache tensors.
     """
 
     compression_ratio: float = 0.0
-    score_aggregation: Literal["mean"] = "mean"
     n_sink: int = 4
     recent_window: int = 128
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.score_aggregation == "mean", "Only mean score aggregation is currently supported"
         assert self.n_sink >= 0, "n_sink must be non-negative"
         assert self.recent_window >= 0, "recent_window must be non-negative"
 
@@ -44,7 +41,7 @@ class KVzapPrunePress(KVzapPress):
             return keys, values
 
         scores = self.score(module, hidden_states, keys, values, attentions, kwargs)
-        token_scores = scores.mean(dim=1)
+        token_scores = scores.max(dim=1).values
 
         bsz, _, k_len, _ = keys.shape
         n_pruned = int(k_len * self.compression_ratio)
